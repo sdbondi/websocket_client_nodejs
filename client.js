@@ -5,13 +5,14 @@ const Repl = require('repl');
 
 const url = args.url || "http://localhost:3001";
 const wsUrl = args['ws-url'] || "ws://localhost:3001";
-const refreshToken  = args.token.trim();
+const refreshToken = args.token.trim();
 
 const RpcMethods = {
-    AdminSubscribeToTopic: 'AdminSubscribeToTopic'
+    AdminTopicSubscribe: 'AdminTopicSubscribe',
+    AdminTopicUnsubscribe: 'AdminTopicUnsubscribe'
 };
 
-let id =0;
+let id = 0;
 const nextId = () => {
     id++;
     return id;
@@ -38,11 +39,11 @@ async function get_token(accessToken) {
         json: true
     });
 
-    let json =  await resp.json();
+    let json = await resp.json();
     return json.auth_token;
 }
 
-async function main()  {
+async function main() {
     let accessToken = await get_access_token(refreshToken);
     console.log(`Got access token ${accessToken}`);
     let authToken = await get_token(accessToken)
@@ -50,19 +51,22 @@ async function main()  {
 
     const client = new WebSocketClient();
 
-    client.on('connectFailed', function(error) {
+    client.on('connectFailed', function (error) {
         console.log('Connect Error: ' + error.toString());
     });
 
-    client.on('connect', function(connection) {
+    client.on('connect', function (connection) {
         console.log('WebSocket Client Connected');
-        connection.on('error', function(error) {
+
+        connection.on('error', function (error) {
             console.log("Connection Error: " + error.toString());
         });
-        connection.on('close', function() {
+
+        connection.on('close', function () {
             console.log('echo-protocol Connection Closed');
         });
-        connection.on('message', function(message) {
+
+        connection.on('message', function (message) {
             if (message.type === 'utf8') {
                 console.log("Received: '" + message.utf8Data + "'");
             } else {
@@ -71,19 +75,25 @@ async function main()  {
         });
 
         let repl = Repl.start('> ');
+
         repl.on('close', () => {
             connection.close();
         });
+
         let ctx = repl.context;
         ctx.sub = ctx.subscribe = (topic) => {
-            connection.send(JSON.stringify({id: nextId(), method: RpcMethods.AdminSubscribeToTopic, params: {topic}}));
+            connection.send(JSON.stringify({id: nextId(), method: RpcMethods.AdminTopicSubscribe, params: {topic}}));
         };
+
+        ctx.usub = ctx.unsub = ctx.unsubscribe = (topic) => {
+            connection.send(JSON.stringify({id: nextId(), method: RpcMethods.AdminTopicUnsubscribe, params: {topic}}));
+        };
+
         ctx.reconnect = () => {
             repl.close();
             setImmediate(() => {
                 main().catch(e => {
                     console.error(e);
-                    process.exit(1);
                 });
             })
         }
