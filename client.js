@@ -68,7 +68,7 @@ async function main() {
 
         connection.on('message', function (message) {
             if (message.type === 'utf8') {
-                console.log("Received: '" + message.utf8Data + "'");
+                console.log("⬇️  " + message.utf8Data + "'");
             } else {
                 console.log(message);
             }
@@ -81,12 +81,21 @@ async function main() {
         });
 
         let ctx = repl.context;
+
+        const send = ctx.send = (data) => {
+            connection.send(JSON.stringify(data));
+        };
+
+        const rpcCall = ctx.call = (method, params) => {
+            send({id: nextId(), method, params});
+        };
+
         ctx.sub = ctx.subscribe = (topic) => {
-            connection.send(JSON.stringify({id: nextId(), method: RpcMethods.AdminTopicSubscribe, params: {topic}}));
+            rpcCall(RpcMethods.AdminTopicSubscribe, {topic})
         };
 
         ctx.usub = ctx.unsub = ctx.unsubscribe = (topic) => {
-            connection.send(JSON.stringify({id: nextId(), method: RpcMethods.AdminTopicUnsubscribe, params: {topic}}));
+            rpcCall(RpcMethods.AdminTopicUnsubscribe, {topic})
         };
 
         ctx.reconnect = () => {
